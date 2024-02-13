@@ -1,0 +1,17 @@
+body{
+    background-color: rgb(75, 74, 74);
+    color:ghostwhite;
+}
+
+.jumbo-color{
+    background-color: rgb(83, 84, 84);
+}
+
+.lead{
+    font-family: 'pacifico', cursive;
+}
+
+.form-control{
+    background-color: rgb(177, 168, 168);
+    
+}
