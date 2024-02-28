@@ -4,6 +4,8 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from .models import Post
 from django.contrib.auth.models import Group
+from django.core.mail import send_mail
+from django.urls import reverse
 
 # Create your views here.
 # home
@@ -17,6 +19,19 @@ def about(request):
 
 # contact
 def contact(request):
+    if request.method == 'POST':
+        name = request.POST.get('name', '')
+        email = request.POST.get('email', '')
+        address = request.POST.get('add', '')
+        message = request.POST.get('msg', '')
+
+        subject = f'Contact Form Submission from {name}'
+        message_body = f'Name: {name}\nEmail: {email}\nAddress: {address}\n\nMessage:\n{message}'
+        from_email = 'divyang.kansara@technostacks.com'  
+        to_email = ['divyangtest@yopmail.com', 'divyangkansara21@gmail.com']  
+
+        send_mail(subject, message_body, from_email, to_email, fail_silently=False)
+
     return render(request, 'blog/contact.html')
 
 # dashboard
