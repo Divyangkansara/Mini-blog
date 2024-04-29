@@ -1,11 +1,15 @@
-from django.shortcuts import render, HttpResponseRedirect,redirect
+import jwt
+import datetime
+from django.conf import settings
+from django.shortcuts import render, HttpResponseRedirect,redirect, HttpResponse
 from .forms import SignupForm, LoginForm, PostForm
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from .models import Post
 from django.contrib.auth.models import Group
 from django.core.mail import send_mail
-from django.urls import reverse
+from datetime import datetime, timedelta
+
 
 # Create your views here.
 # home
@@ -34,23 +38,12 @@ def contact(request):
 
     return render(request, 'blog/contact.html')
 
-# dashboard
-def dashboard(request):
-    if request.user.is_authenticated:
-        posts = Post.objects.all()
-        user = request.user
-        full_name = user.get_full_name()
-        gps = user.groups.all()
-        return render(request, 'blog/dashboard.html', {'posts': posts,
-               'full_name':full_name, 'groups':gps})
-    else:
-        return HttpResponseRedirect('/login/')
+
 
 # signup
-
 def signup(request):
     if request.method == 'POST':
-        form = SignupForm(request.POST)
+        form = SignupForm(request.POST) 
         if form.is_valid():
             user = form.save()
             group = Group.objects.get(name='Author')
@@ -75,6 +68,24 @@ def signup(request):
 
 
 # login
+def generate_tokens(user):
+    # Generate access token
+    access_payload = {
+        'user_id': user.id,
+        'username': user.username,
+        'exp': datetime.utcnow() + timedelta(seconds=settings.ACCESS_TOKEN_EXPIRATION_SECONDS)
+    }
+    access_token = jwt.encode(access_payload, settings.SECRET_KEY)
+
+    # Generate refresh token
+    refresh_payload = {
+        'user_id': user.id,
+        'exp': datetime.utcnow() + timedelta(seconds=settings.REFRESH_TOKEN_EXPIRATION_SECONDS)
+    }
+    refresh_token = jwt.encode(refresh_payload, settings.SECRET_KEY)
+
+    return access_token, refresh_token
+
 def user_login(request):
     if not request.user.is_authenticated:
         if request.method == 'POST':
@@ -86,18 +97,81 @@ def user_login(request):
                 if user is not None:
                     login(request, user)
                     messages.success(request, 'Logged in successfully!!')
+
+                    access_token, refresh_token = generate_tokens(user)
+
+                    request.session['jwt_access_token'] = access_token
+                    request.session['jwt_refresh_token'] = refresh_token
+
+
+                    print("Access Token:", access_token)
+                    print("Refresh Token:", refresh_token)
+
                     return HttpResponseRedirect('/dashboard/')
         else:
-            form = LoginForm()
+            form = LoginForm() 
         return render(request, 'blog/login.html', {'form': form})
     else:
-        return HttpResponseRedirect('/dashboard/')  
+        return HttpResponseRedirect('/dashboard/')
 
+# dashboard
+def dashboard(request):
+    if request.user.is_authenticated:
+        posts = Post.objects.all()
+        user = request.user
+        full_name = user.get_full_name()
+        gps = user.groups.all()
+        return render(request, 'blog/dashboard.html', {'posts': posts,
+               'full_name':full_name, 'groups':gps})
+    else:
+        return HttpResponseRedirect('/login/')
+
+def check_token_details(request):
+    if request.user.is_authenticated:
+        access_token = request.session.get('jwt_access_token')
+        refresh_token = request.session.get('jwt_refresh_token')
+
+        if access_token:
+            try:
+                decoded_access_token = jwt.decode(access_token, settings.SECRET_KEY, algorithms=['HS256'])
+                user_id = decoded_access_token.get('user_id')
+                username = decoded_access_token.get('username')
+                exp_time = decoded_access_token.get('exp')
+
+                print("JWT Token Details:")
+                print("User ID:", user_id)
+                print("Username:", username)
+                print("Access Token:", access_token)
+
+                if exp_time:
+                    exp_datetime = datetime.utcfromtimestamp(exp_time)  # Convert exp_time to datetime
+                    if datetime.utcnow() > exp_datetime + timedelta(seconds=settings.ACCESS_TOKEN_EXPIRATION_SECONDS):
+                        print("Access Token expired. Refresh Token:", refresh_token)
+
+
+            except jwt.ExpiredSignatureError:
+                # Access token signature expired
+                print("Access Token signature expired. Refresh Token:", refresh_token)
+        else:
+            print("Access Token not found")
+
+        return HttpResponseRedirect('/dashboard/')
+    else:
+        return HttpResponseRedirect('/login/')
 
 # logout
 def user_logout(request):
+    print("Token exists before deletion:", request.session['jwt_access_token'])
     logout(request)
+    print("Token exists after deletion:")
+    if 'jwt_access_token' in request.session:
+        print("Token exists before deletion:", request.session['jwt_access_token'])
+        del request.session['jwt_token']
+        print("Token deleted...")
+    else:
+        print("Token not found in session.") 
     return HttpResponseRedirect('/')
+
 
 # Add New Post
 def add_post(request):

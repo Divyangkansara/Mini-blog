@@ -134,3 +134,9 @@ EMAIL_PORT=465
 EMAIL_HOST_USER='divyang.kansara@technostacks.com'
 EMAIL_HOST_PASSWORD='#Kansara@4698$'
 EMAIL_USE_TLS=True
+
+# Access token expiration time in seconds
+ACCESS_TOKEN_EXPIRATION_SECONDS = 60  # 1 hour
+
+# Refresh token expiration time in seconds
+REFRESH_TOKEN_EXPIRATION_SECONDS = 86400  # 1 day
